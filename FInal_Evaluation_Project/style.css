@@ -43,7 +43,7 @@
 }
 
 #flexbox_newGame{
-    flex: auto;
+    flex-basis: 50px;
     align-items: center;
 
 }
@@ -59,4 +59,21 @@
 #flexbox_newGame button:hover{
     transition: .3s;
     background-color: #0056B3;
+}
+
+#flexbox_guessedArea{
+    text-align: center;
+    width: 700px;
+    border: solid 2px rgb(209, 209, 209);
+}
+h3 span{
+    color: rgb(100, 167, 0);
+}
+
+#flexbox_guessedArea_guessedCh{
+    flex: auto;
+    font-size: 20px;
+}
+.flexbox_guessedArea_guessedCh_true{
+    color: rgb(100, 167, 0);
 }

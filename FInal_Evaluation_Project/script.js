@@ -1,48 +1,45 @@
 // set url
 const Api = (() => {
     const url = "https://random-word-api.herokuapp.com/word"
+    const getWord = () => {
+        return fetch(url).then((res) => res.json()).catch()
+    }
     return{
-        url
+        getWord
     }
 })()
 
 const View = (() => {
     let domSelector = {
+        time: '#flexbox_time',
         guessCount: '#flexbox_guessCount_text',
         guessWord: '#flexbox_guessWord_text',
         input: '#flexbox_input_box',
-        newGameButton: '#flexbox_newGame_button'
+        newGameButton: '#flexbox_newGame_button',
+        guessedCharacter: '#flexbox_guessedArea_guessedCh'
     }
-
-    // Create new word and return an array of each character
-    const createWord = str => {
-        let word = str
-        let array = word.split('')
-        let _count = 0
-        array.forEach((ele, index, Arr) => {
-            if(_count < Math.floor(word.length * 0.5) && Math.random() - 0.5 > 0){
-                Arr[index] = '_'
-                _count++
-            }
-        })
-        return array
-    }
+    
 
     // Change the element in HTML
     const render = (ele, temp) => {
         ele.innerHTML = temp
     }
 
+    // Add text in element
+    const addText = (ele, temp) => {
+        ele.innerHTML += temp
+    }
+
     return{
         domSelector,
-        createWord,
-        render
+        render,
+        addText
     }
 })()
 
 const Model = ((api, view) => {
-    const {domSelector, createWord, render} = view
-    const {url} = api
+    const {domSelector, createWord, render, addText} = view
+    const {getWord} = api
 
     // Class
     class GuessGame{
@@ -51,6 +48,28 @@ const Model = ((api, view) => {
             this.word = []
             this.displayWord = []
             this.guessSuccess = 0
+            this.guessedCh = new Set()
+            this.time = 0
+            this.interval
+        }
+
+        // Bouns: Time limit part
+        timeSet(){
+            clearInterval(this.interval)
+            this.time = 0
+            render(document.querySelector(domSelector.time), 60)
+            this.interval = setInterval(() => {
+                if(this.time < 60){
+                    this.time++
+                    render(document.querySelector(domSelector.time), 60 - this.time)
+                    console.log(this.time)
+                }
+                else{
+                    this.time = 0
+                    clearInterval(this.interval)
+                    alert('Time out! You have guessed ' + this.getSuccess + ' words! Press New Game to restart.')
+                }
+            }, 1000)
         }
 
         // Get success time
@@ -58,18 +77,36 @@ const Model = ((api, view) => {
             return this.guessSuccess
         }
 
+        // Create new word and return an array of each character
+        createWord(str) {
+            let word = str
+            let array = word.split('')
+            let _count = 0
+            // Each character in the word has 50% probability set as '_', and the the number of '_' will be less than the half of the word length
+            array.forEach((ele, index, Arr) => {
+                if(_count < Math.floor(word.length * 0.5) && Math.random() - 0.5 > 0){
+                    Arr[index] = '_'
+                    _count++
+                }
+            })
+            return array
+        }
+
         // Set new word
         set setWord(newWord){
             this.word = newWord[0].split('')
             let wordContainer = document.querySelector(domSelector.guessWord)
-            this.displayWord = createWord(newWord[0])
+            let guessedCharacter = document.querySelector(domSelector.guessedCharacter)
+            this.displayWord = this.createWord(newWord[0])
             render(wordContainer, this.displayWord.join(' '))
-            console.log(this.word)
+            render(guessedCharacter, '')
+            this.guessedCh.clear()
         }
 
         // Change guess word if guess right
         guessWord(input){
             let changed = false
+            if(this.guessedCh.has(input)) return true
             let wordContainer = document.querySelector(domSelector.guessWord)
             this.displayWord.forEach((ele, index, arr) => {
                 if(ele == '_' && input == this.word[index]){
@@ -91,40 +128,50 @@ const Model = ((api, view) => {
         }
     }
 
+
     return{
         GuessGame,
-        url
+        getWord
     }
 })(Api, View)
 
 const Controller = ((view, model) => {
-    const {domSelector, createWord, render} = view
-    const {GuessGame, url} = model
+    const {domSelector, createWord, render, addText} = view
+    const {GuessGame, getWord} = model
 
     const newGame = new GuessGame()
-    // Initialize
+    // Initialize: get new word, reset chance, clear input and reset time limit
     const init = () => {
-        let response = fetch(url)
-        response.then((res) => res.json()).catch().then((data) => {
+        getWord().then((data) => {
             newGame.setWord = data
-        })        
+        })       
         newGame.chanceCount = 0
         render(document.querySelector(domSelector.guessCount), newGame.chanceCount + ' / 10')
         document.querySelector(domSelector.input).value = ''
+        newGame.timeSet()
     }
 
     // Judge if the input is right and if there is chance to guess
+    // Bonus: Add guessed character
     const answer_guess = () => {
         const userInput = document.querySelector(domSelector.input)
+        const guessedCharacter = document.querySelector(domSelector.guessedCharacter)
         addEventListener('keydown', (event) => {
             if(event.key == "Enter"){
-                if(userInput != ''){
-                    let changed = newGame.guessWord(userInput.value)
+                let guessed = userInput.value
+                let changed = newGame.guessWord(guessed)
+                if(guessed != ''){
                     newGame.setChance = changed
+                    if(!newGame.guessedCh.has(guessed)){
+                        if(changed) addText(guessedCharacter, `<span class="flexbox_guessedArea_guessedCh_true">${guessed} </span>`)
+                        else addText(guessedCharacter, `<span>${guessed} </span>`)
+                        newGame.guessedCh.add(guessed)
+                    }
+                    else window.alert('You have guessed this charater! Please Try another one.')
                     userInput.value = ''
                 }
                 if(newGame.word.join('') == newGame.displayWord.join('')){
-                    fetch(url).then((res) => res.json()).catch().then((data) => {
+                    getWord().then((data) => {
                         newGame.setWord = data
                     })
                     newGame.guessSuccess++
@@ -140,14 +187,7 @@ const Controller = ((view, model) => {
     // Set new game
     const renewGame = () => {
         const btn = document.querySelector(domSelector.newGameButton)
-        btn.addEventListener('click', () => {
-            fetch(url).then((res) => res.json()).catch().then((data) => {
-                newGame.setWord = data
-            })
-            newGame.chanceCount = 0
-            render(document.querySelector(domSelector.guessCount), newGame.chanceCount + ' / 10')
-            document.querySelector(domSelector.input).value = ''
-        })
+        btn.addEventListener('click', init)
     }
 
 
