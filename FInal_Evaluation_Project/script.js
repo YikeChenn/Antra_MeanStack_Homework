@@ -30,15 +30,21 @@ const View = (() => {
         ele.innerHTML += temp
     }
 
+    // Clear users' input
+    const emptyTextbox = () => {
+        document.querySelector(domSelector.input).value = ''
+    }
+
     return{
         domSelector,
         render,
-        addText
+        addText,
+        emptyTextbox
     }
 })()
 
 const Model = ((api, view) => {
-    const {domSelector, createWord, render, addText} = view
+    const {domSelector, createWord, render, addText, emptyTextbox} = view
     const {getWord} = api
 
     // Class
@@ -62,7 +68,6 @@ const Model = ((api, view) => {
                 if(this.time < 60){
                     this.time++
                     render(document.querySelector(domSelector.time), 60 - this.time)
-                    console.log(this.time)
                 }
                 else{
                     this.time = 0
@@ -95,25 +100,25 @@ const Model = ((api, view) => {
         // Set new word
         set setWord(newWord){
             this.word = newWord[0].split('')
+            this.displayWord = this.createWord(newWord[0])
             let wordContainer = document.querySelector(domSelector.guessWord)
             let guessedCharacter = document.querySelector(domSelector.guessedCharacter)
-            this.displayWord = this.createWord(newWord[0])
             render(wordContainer, this.displayWord.join(' '))
             render(guessedCharacter, '')
             this.guessedCh.clear()
         }
 
-        // Change guess word if guess right
+        // Change guess word if guess right, return a bool if the guess is right or not
         guessWord(input){
             let changed = false
             if(this.guessedCh.has(input)) return true
-            let wordContainer = document.querySelector(domSelector.guessWord)
             this.displayWord.forEach((ele, index, arr) => {
                 if(ele == '_' && input == this.word[index]){
                     arr[index] = this.word[index]
                     changed = true
                 }
             })
+            let wordContainer = document.querySelector(domSelector.guessWord)
             render(wordContainer, this.displayWord.join(' '))
             return changed
         }
@@ -136,18 +141,18 @@ const Model = ((api, view) => {
 })(Api, View)
 
 const Controller = ((view, model) => {
-    const {domSelector, createWord, render, addText} = view
+    const {domSelector, createWord, render, addText, emptyTextbox} = view
     const {GuessGame, getWord} = model
 
     const newGame = new GuessGame()
-    // Initialize: get new word, reset chance, clear input and reset time limit
+    // Initialize: get new word, reset chance, clear users' input and reset time limit
     const init = () => {
         getWord().then((data) => {
             newGame.setWord = data
         })       
         newGame.chanceCount = 0
         render(document.querySelector(domSelector.guessCount), newGame.chanceCount + ' / 10')
-        document.querySelector(domSelector.input).value = ''
+        emptyTextbox()
         newGame.timeSet()
     }
 
@@ -160,6 +165,7 @@ const Controller = ((view, model) => {
             if(event.key == "Enter"){
                 let guessed = userInput.value
                 let changed = newGame.guessWord(guessed)
+                // Add guessed letter to the guessed area
                 if(guessed != ''){
                     newGame.setChance = changed
                     if(!newGame.guessedCh.has(guessed)){
@@ -168,14 +174,16 @@ const Controller = ((view, model) => {
                         newGame.guessedCh.add(guessed)
                     }
                     else window.alert('You have guessed this charater! Please Try another one.')
-                    userInput.value = ''
+                    emptyTextbox()
                 }
+                // If the all letters are right, change new word
                 if(newGame.word.join('') == newGame.displayWord.join('')){
                     getWord().then((data) => {
                         newGame.setWord = data
                     })
                     newGame.guessSuccess++
                 }
+                // If there is not chance, alert and reset the game
                 if(newGame.chanceCount >= 10){
                     window.alert('Game Over! You have guessed ' + newGame.getSuccess + ' words!')
                     init()
